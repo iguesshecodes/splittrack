@@ -1,3 +1,7 @@
+import heroImg from '../assets/hero.jpg'
+import financeImg from '../assets/finance.jpg'
+import groupImg from '../assets/group.jpg'
+
 export default function Home({ onGetStarted }) {
   return (
     <div className="homepage">
@@ -33,10 +37,7 @@ export default function Home({ onGetStarted }) {
         </div>
 
         <div className="hero-image">
-          <img
-            src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1400&q=80"
-            alt="SplitTrack premium lifestyle"
-          />
+          <img src={heroImg} alt="SplitTrack premium lifestyle" />
         </div>
       </section>
 
@@ -64,10 +65,7 @@ export default function Home({ onGetStarted }) {
         </div>
 
         <div className="story-image-card">
-          <img
-            src="https://images.unsplash.com/photo-1556742502-ec7c0e9f34b1?auto=format&fit=crop&w=1400&q=80"
-            alt="Personal finance aesthetic"
-          />
+          <img src={financeImg} alt="Personal finance aesthetic" />
         </div>
       </section>
 
@@ -81,10 +79,7 @@ export default function Home({ onGetStarted }) {
         </div>
 
         <div className="story-image-card">
-          <img
-            src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1400&q=80"
-            alt="Group spending aesthetic"
-          />
+          <img src={groupImg} alt="Group spending aesthetic" />
         </div>
       </section>
 
