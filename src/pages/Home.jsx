@@ -1,7 +1,3 @@
-import heroImg from '../assets/hero.jpg'
-import financeImg from '../assets/finance.jpg'
-import groupImg from '../assets/group.jpg'
-
 export default function Home({ onGetStarted }) {
   return (
     <div className="homepage">
@@ -37,7 +33,7 @@ export default function Home({ onGetStarted }) {
         </div>
 
         <div className="hero-image">
-          <img src={heroImg} alt="SplitTrack premium lifestyle" />
+          <img src="/images/hero.jpg" alt="SplitTrack premium lifestyle" />
         </div>
       </section>
 
@@ -65,7 +61,7 @@ export default function Home({ onGetStarted }) {
         </div>
 
         <div className="story-image-card">
-          <img src={financeImg} alt="Personal finance aesthetic" />
+          <img src="/images/finance.jpg" alt="Personal finance aesthetic" />
         </div>
       </section>
 
@@ -79,7 +75,7 @@ export default function Home({ onGetStarted }) {
         </div>
 
         <div className="story-image-card">
-          <img src={groupImg} alt="Group spending aesthetic" />
+          <img src="/images/group.jpg" alt="Group spending aesthetic" />
         </div>
       </section>
 
