@@ -1,87 +1,144 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-const Logo = () => (
-  <div className="auth-logo">
-    <div className="auth-logo-mark">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-        <rect x="3" y="10.5" width="7" height="3" rx="1.5" fill="white"/>
-        <rect x="14" y="10.5" width="7" height="3" rx="1.5" fill="white"/>
-        <circle cx="12" cy="12" r="3" fill="none" stroke="white" strokeWidth="2"/>
-        <rect x="8.5" y="4" width="2.5" height="7" rx="1.25" fill="rgba(255,255,255,0.4)"/>
-        <rect x="13" y="13" width="2.5" height="7" rx="1.25" fill="rgba(255,255,255,0.4)"/>
-      </svg>
-    </div>
-    <div className="auth-wordmark">Split<span>Track</span></div>
-  </div>
-)
-
 export default function Auth() {
-  const [mode, setMode] = useState('login')
+  const [isSignUp, setIsSignUp] = useState(true)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
+  const [errorMsg, setErrorMsg] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
 
-  const handleSubmit = async (e) => {
+  async function handleSubmit(e) {
     e.preventDefault()
-    setError('')
-    setSuccess('')
     setLoading(true)
+    setErrorMsg('')
+    setSuccessMsg('')
 
-    if (mode === 'signup') {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { name } }
-      })
-      if (error) setError(error.message)
-      else setSuccess('Account created! Check your email to confirm, then log in.')
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) setError(error.message)
+    try {
+      if (isSignUp) {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { name }
+          }
+        })
+
+        if (error) {
+          setErrorMsg(error.message)
+        } else {
+          setSuccessMsg('Account created successfully. You can now sign in.')
+          setIsSignUp(false)
+          setPassword('')
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        })
+
+        if (error) {
+          setErrorMsg(error.message)
+        }
+      }
+    } catch (err) {
+      setErrorMsg('Something went wrong. Please try again.')
     }
+
     setLoading(false)
   }
 
   return (
     <div className="auth-page">
-      <div className="auth-box">
-        <Logo />
-        <div className="auth-title">{mode === 'login' ? 'Welcome back' : 'Create account'}</div>
-        <div className="auth-sub">{mode === 'login' ? 'Sign in to your account' : 'Start splitting expenses with friends'}</div>
+      <div className="auth-overlay" />
 
-        {error && <div className="error-msg">{error}</div>}
-        {success && <div className="success-msg">{success}</div>}
+      <div className="auth-card">
+        <div className="auth-brand">
+          <div className="auth-logo">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="10.5" width="7" height="3" rx="1.5" fill="white" />
+              <rect x="14" y="10.5" width="7" height="3" rx="1.5" fill="white" />
+              <circle cx="12" cy="12" r="3" fill="none" stroke="white" strokeWidth="2" />
+            </svg>
+          </div>
+          <div>
+            <h1>SplitTrack</h1>
+            <p>Split group expenses and track your personal finances.</p>
+          </div>
+        </div>
 
-        <form onSubmit={handleSubmit}>
-          {mode === 'signup' && (
-            <div className="field">
+        <div className="auth-header">
+          <h2>{isSignUp ? 'Create account' : 'Welcome back'}</h2>
+          <p>
+            {isSignUp
+              ? 'Start managing shared and personal money in one place.'
+              : 'Sign in to continue to your dashboard.'}
+          </p>
+        </div>
+
+        {errorMsg && <div className="auth-message error">{errorMsg}</div>}
+        {successMsg && <div className="auth-message success">{successMsg}</div>}
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          {isSignUp && (
+            <div className="auth-field">
               <label>Your name</label>
-              <input type="text" placeholder="Varesh" value={name} onChange={e => setName(e.target.value)} required />
+              <input
+                type="text"
+                placeholder="Enter your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
             </div>
           )}
-          <div className="field">
+
+          <div className="auth-field">
             <label>Email</label>
-            <input type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} required />
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
-          <div className="field">
+
+          <div className="auth-field">
             <label>Password</label>
-            <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
+            <input
+              type="password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+            />
           </div>
-          <button className="btn btn-primary btn-full" type="submit" disabled={loading} style={{ marginTop: '0.5rem' }}>
-            {loading ? 'Please wait...' : mode === 'login' ? 'Sign in' : 'Create account'}
+
+          <button className="auth-submit" type="submit" disabled={loading}>
+            {loading
+              ? 'Please wait...'
+              : isSignUp
+              ? 'Create account'
+              : 'Sign in'}
           </button>
         </form>
 
-        <div className="auth-toggle">
-          {mode === 'login' ? (
-            <>Don't have an account? <button onClick={() => { setMode('signup'); setError(''); setSuccess('') }}>Sign up</button></>
-          ) : (
-            <>Already have an account? <button onClick={() => { setMode('login'); setError(''); setSuccess('') }}>Sign in</button></>
-          )}
+        <div className="auth-switch">
+          {isSignUp ? 'Already have an account?' : "Don't have an account?"}
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignUp(!isSignUp)
+              setErrorMsg('')
+              setSuccessMsg('')
+            }}
+          >
+            {isSignUp ? 'Sign in' : 'Create account'}
+          </button>
         </div>
       </div>
     </div>

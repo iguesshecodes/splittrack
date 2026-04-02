@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import CreateGroupModal from '../components/CreateGroupModal'
 
-const EMOJIS = ['🏖️','🎉','🍕','✈️','🏠','🎮','🍻','⚽','🎵','🌍']
+const EMOJIS = ['🏖️', '🎉', '🍕', '✈️', '🏠', '🎮', '🍻', '⚽', '🎵', '🌍']
 
 export default function Dashboard({ session, onSelectGroup, onOpenPersonal }) {
   const [groups, setGroups] = useState([])
@@ -24,8 +24,7 @@ export default function Dashboard({ session, onSelectGroup, onOpenPersonal }) {
       .order('joined_at', { ascending: false })
 
     if (!error && data) {
-      const gs = data.map((d) => d.groups).filter(Boolean)
-      setGroups(gs)
+      setGroups(data.map((d) => d.groups).filter(Boolean))
     }
 
     setLoading(false)
@@ -40,11 +39,13 @@ export default function Dashboard({ session, onSelectGroup, onOpenPersonal }) {
       <div className="topbar">
         <div className="topbar-logo">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="10.5" width="7" height="3" rx="1.5" fill="white"/>
-            <rect x="14" y="10.5" width="7" height="3" rx="1.5" fill="white"/>
-            <circle cx="12" cy="12" r="3" fill="none" stroke="white" strokeWidth="2"/>
+            <rect x="3" y="10.5" width="7" height="3" rx="1.5" fill="white" />
+            <rect x="14" y="10.5" width="7" height="3" rx="1.5" fill="white" />
+            <circle cx="12" cy="12" r="3" fill="none" stroke="white" strokeWidth="2" />
           </svg>
-          <span className="topbar-wordmark">Split<span>Track</span></span>
+          <span className="topbar-wordmark">
+            Split<span>Track</span>
+          </span>
         </div>
 
         <div className="topbar-right">
@@ -54,8 +55,8 @@ export default function Dashboard({ session, onSelectGroup, onOpenPersonal }) {
           <button
             className="btn btn-sm"
             style={{
-              color: 'rgba(255,255,255,0.7)',
-              background: 'rgba(255,255,255,0.1)',
+              color: 'rgba(255,255,255,0.85)',
+              background: 'rgba(255,255,255,0.12)',
               border: 'none'
             }}
             onClick={handleSignOut}
@@ -65,58 +66,43 @@ export default function Dashboard({ session, onSelectGroup, onOpenPersonal }) {
         </div>
       </div>
 
-      <div className="page">
-        <div className="page-header">
-          <div style={{ flex: 1 }}>
-            <div className="page-title">Dashboard</div>
-            <div className="text-sm text-muted mt-1">
-              Manage your personal finances and shared group expenses
-            </div>
+      <div className="dashboard-page">
+        <div className="dashboard-hero">
+          <div>
+            <h1>Welcome back 👋</h1>
+            <p>
+              Manage your shared groups and personal finances from one place.
+            </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div className="dashboard-hero-actions">
             <button className="btn" onClick={onOpenPersonal}>
               Personal Finance
             </button>
             <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-              + New group
+              + New Group
             </button>
           </div>
         </div>
 
-        <div
-          style={{
-            background: 'white',
-            borderRadius: '16px',
-            padding: '20px',
-            marginBottom: '24px',
-            border: '1px solid #e5e7eb',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: '20px'
-          }}
-        >
+        <div className="dashboard-feature-card">
           <div>
-            <div style={{ fontSize: '20px', fontWeight: 700, marginBottom: '6px' }}>
-              Personal Finance
-            </div>
-            <div style={{ color: '#666' }}>
-              Track your own expenses, income, savings, and monthly balance.
-            </div>
+            <h2>Personal Finance</h2>
+            <p>
+              Track your own expenses, income, savings, and remaining balance.
+            </p>
           </div>
-
           <button className="btn btn-primary" onClick={onOpenPersonal}>
             Open
           </button>
         </div>
 
-        <div className="page-header" style={{ marginBottom: '12px' }}>
+        <div className="dashboard-groups-header">
           <div>
-            <div className="page-title">Your groups</div>
-            <div className="text-sm text-muted mt-1">
+            <h2>Your Groups</h2>
+            <p>
               {groups.length} active {groups.length === 1 ? 'group' : 'groups'}
-            </div>
+            </p>
           </div>
         </div>
 
@@ -125,23 +111,27 @@ export default function Dashboard({ session, onSelectGroup, onOpenPersonal }) {
         ) : groups.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">💸</div>
-            <div style={{ fontWeight: 500, marginBottom: 6 }}>No groups yet</div>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>No groups yet</div>
             <div>Create your first group to start splitting expenses</div>
             <button className="btn btn-primary mt-2" onClick={() => setShowCreate(true)}>
               Create a group
             </button>
           </div>
         ) : (
-          groups.map((g, i) => (
-            <div className="group-card" key={g.id} onClick={() => onSelectGroup(g)}>
-              <div className="group-icon">{EMOJIS[i % EMOJIS.length]}</div>
-              <div>
-                <div className="group-name">{g.name}</div>
-                {g.description && <div className="group-meta">{g.description}</div>}
+          <div className="dashboard-groups-grid">
+            {groups.map((g, i) => (
+              <div className="dashboard-group-card" key={g.id} onClick={() => onSelectGroup(g)}>
+                <div className="dashboard-group-icon">{EMOJIS[i % EMOJIS.length]}</div>
+                <div className="dashboard-group-content">
+                  <div className="dashboard-group-name">{g.name}</div>
+                  <div className="dashboard-group-desc">
+                    {g.description || 'No description'}
+                  </div>
+                </div>
+                <div className="dashboard-group-arrow">›</div>
               </div>
-              <span className="group-arrow">›</span>
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </div>
 
