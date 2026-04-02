@@ -1,5 +1,18 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
+} from 'recharts'
 
 const CATEGORY_OPTIONS = [
   'Food',
@@ -15,6 +28,8 @@ const CATEGORY_OPTIONS = [
   'Savings',
   'Other'
 ]
+
+const CHART_COLORS = ['#1f4d3a', '#2563eb', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6', '#f97316']
 
 export default function Personal({ onBack, session }) {
   const [title, setTitle] = useState('')
@@ -127,13 +142,40 @@ export default function Personal({ onBack, session }) {
       ? transactions
       : transactions.filter((t) => t.type === filterType)
 
+  const expenseByCategoryMap = {}
+  transactions
+    .filter((t) => t.type === 'expense')
+    .forEach((t) => {
+      const key = t.category || 'Other'
+      expenseByCategoryMap[key] = (expenseByCategoryMap[key] || 0) + Number(t.amount)
+    })
+
+  const expenseByCategoryData = Object.entries(expenseByCategoryMap).map(([name, value]) => ({
+    name,
+    value,
+  }))
+
+  const monthlyDataMap = {}
+  transactions.forEach((t) => {
+    const d = new Date(t.date)
+    const month = d.toLocaleString('en-GB', { month: 'short' })
+
+    if (!monthlyDataMap[month]) {
+      monthlyDataMap[month] = { month, income: 0, expense: 0, saving: 0 }
+    }
+
+    monthlyDataMap[month][t.type] += Number(t.amount)
+  })
+
+  const monthlyChartData = Object.values(monthlyDataMap)
+
   return (
     <div className="personal-page">
       <div className="personal-top">
         <button className="back-btn" onClick={onBack}>← Back</button>
         <div>
           <h1>Personal Finance</h1>
-          <p>Track your income, expenses, savings, and remaining balance.</p>
+          <p>Track your income, expenses, savings, and financial trends.</p>
         </div>
       </div>
 
@@ -156,6 +198,62 @@ export default function Personal({ onBack, session }) {
         <div className="summary-card balance-card">
           <span>Remaining Balance</span>
           <strong>£{remainingBalance.toFixed(2)}</strong>
+        </div>
+      </div>
+
+      <div className="charts-grid">
+        <div className="personal-card">
+          <div className="card-header">
+            <h2>Expenses by Category</h2>
+          </div>
+
+          {expenseByCategoryData.length === 0 ? (
+            <div className="empty-table">No expense data yet.</div>
+          ) : (
+            <div style={{ width: '100%', height: 300 }}>
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={expenseByCategoryData}
+                    dataKey="value"
+                    nameKey="name"
+                    outerRadius={100}
+                    label
+                  >
+                    {expenseByCategoryData.map((_, index) => (
+                      <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        <div className="personal-card">
+          <div className="card-header">
+            <h2>Monthly Overview</h2>
+          </div>
+
+          {monthlyChartData.length === 0 ? (
+            <div className="empty-table">No monthly data yet.</div>
+          ) : (
+            <div style={{ width: '100%', height: 300 }}>
+              <ResponsiveContainer>
+                <BarChart data={monthlyChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="income" fill="#22c55e" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="expense" fill="#ef4444" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="saving" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       </div>
 

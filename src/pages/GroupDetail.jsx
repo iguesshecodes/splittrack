@@ -13,36 +13,66 @@ const COLORS = [
 ]
 
 function initials(name = '') {
-  return name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+  return name
+    .trim()
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
 }
 
 function computeSettlements(members, expenses) {
-  const bal = {}
-  members.forEach(m => { bal[m.user_id] = 0 })
-  expenses.forEach(exp => {
+  const balances = {}
+
+  members.forEach((m) => {
+    balances[m.user_id] = 0
+  })
+
+  expenses.forEach((exp) => {
     const splits = exp.expense_splits || []
-    bal[exp.paid_by] = (bal[exp.paid_by] || 0) + Number(exp.amount)
-    splits.forEach(s => { bal[s.user_id] = (bal[s.user_id] || 0) - Number(s.amount) })
+    balances[exp.paid_by] = (balances[exp.paid_by] || 0) + Number(exp.amount)
+
+    splits.forEach((s) => {
+      balances[s.user_id] = (balances[s.user_id] || 0) - Number(s.amount)
+    })
   })
-  const pos = [], neg = []
-  Object.entries(bal).forEach(([id, b]) => {
-    const v = parseFloat(b.toFixed(2))
-    if (v > 0.005) pos.push({ id, b: v })
-    else if (v < -0.005) neg.push({ id, b: v })
+
+  const creditors = []
+  const debtors = []
+
+  Object.entries(balances).forEach(([id, value]) => {
+    const rounded = parseFloat(value.toFixed(2))
+    if (rounded > 0.005) creditors.push({ id, value: rounded })
+    else if (rounded < -0.005) debtors.push({ id, value: rounded })
   })
-  pos.sort((a, b) => b.b - a.b)
-  neg.sort((a, b) => a.b - b.b)
-  const txns = []
-  let pi = 0, ni = 0
-  while (pi < pos.length && ni < neg.length) {
-    const p = pos[pi], n = neg[ni]
-    const amt = Math.min(p.b, -n.b)
-    txns.push({ from: n.id, to: p.id, amount: amt })
-    p.b -= amt; n.b += amt
-    if (Math.abs(p.b) < 0.005) pi++
-    if (Math.abs(n.b) < 0.005) ni++
+
+  creditors.sort((a, b) => b.value - a.value)
+  debtors.sort((a, b) => a.value - b.value)
+
+  const transactions = []
+  let ci = 0
+  let di = 0
+
+  while (ci < creditors.length && di < debtors.length) {
+    const creditor = creditors[ci]
+    const debtor = debtors[di]
+    const amount = Math.min(creditor.value, -debtor.value)
+
+    transactions.push({
+      from: debtor.id,
+      to: creditor.id,
+      amount,
+    })
+
+    creditor.value -= amount
+    debtor.value += amount
+
+    if (Math.abs(creditor.value) < 0.005) ci++
+    if (Math.abs(debtor.value) < 0.005) di++
   }
-  return { bal, txns }
+
+  return { balances, transactions }
 }
 
 export default function GroupDetail({ group, session, onBack }) {
@@ -52,33 +82,53 @@ export default function GroupDetail({ group, session, onBack }) {
   const [loading, setLoading] = useState(true)
   const [showAddExp, setShowAddExp] = useState(false)
   const [showAddMem, setShowAddMem] = useState(false)
+
   const currency = group.currency || '£'
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => {
+    fetchAll()
+  }, [])
 
   async function fetchAll() {
     setLoading(true)
+
     const [{ data: mems }, { data: exps }] = await Promise.all([
-      supabase.from('group_members').select('user_id, profiles(id, name, email)').eq('group_id', group.id),
-      supabase.from('expenses').select('*, expense_splits(*), profiles!paid_by(name)').eq('group_id', group.id).order('created_at', { ascending: false })
+      supabase
+        .from('group_members')
+        .select('user_id, profiles(id, name, email)')
+        .eq('group_id', group.id),
+
+      supabase
+        .from('expenses')
+        .select('*, expense_splits(*), profiles!paid_by(name)')
+        .eq('group_id', group.id)
+        .order('created_at', { ascending: false }),
     ])
+
     setMembers(mems || [])
     setExpenses(exps || [])
     setLoading(false)
   }
 
-  const total = expenses.reduce((s, e) => s + Number(e.amount), 0)
+  const totalSpent = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0)
+
   const memberMap = {}
   members.forEach((m, i) => {
-    memberMap[m.user_id] = { ...m.profiles, color: COLORS[i % COLORS.length] }
+    memberMap[m.user_id] = {
+      ...m.profiles,
+      color: COLORS[i % COLORS.length],
+    }
   })
 
-  const { bal, txns } = computeSettlements(members, expenses)
+  const { balances, transactions } = computeSettlements(members, expenses)
 
-  async function deleteExpense(expId) {
-    if (!confirm('Delete this expense?')) return
-    await supabase.from('expense_splits').delete().eq('expense_id', expId)
-    await supabase.from('expenses').delete().eq('id', expId)
+  async function deleteExpense(expenseId) {
+    const ok = window.confirm('Delete this expense?')
+    if (!ok) return
+
+    await supabase.from('expense_splits').delete().eq('expense_id', expenseId)
+    await supabase.from('expenses').delete().eq('id', expenseId)
+
     fetchAll()
   }
 
@@ -86,96 +136,175 @@ export default function GroupDetail({ group, session, onBack }) {
     <div className="app-shell">
       <div className="topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button className="btn btn-sm btn-icon" style={{ color: 'white', background: 'rgba(255,255,255,0.15)', border: 'none' }} onClick={onBack}>←</button>
+          <button
+            className="btn btn-sm"
+            style={{
+              color: 'white',
+              background: 'rgba(255,255,255,0.12)',
+              border: 'none'
+            }}
+            onClick={onBack}
+          >
+            ← Back
+          </button>
           <span className="topbar-wordmark">{group.name}</span>
         </div>
-        <button className="btn btn-sm" style={{ color: 'rgba(255,255,255,0.85)', background: 'rgba(255,255,255,0.12)', border: 'none' }} onClick={() => setShowAddMem(true)}>
+
+        <button
+          className="btn btn-sm"
+          style={{
+            color: 'rgba(255,255,255,0.9)',
+            background: 'rgba(255,255,255,0.12)',
+            border: 'none'
+          }}
+          onClick={() => setShowAddMem(true)}
+        >
           + Member
         </button>
       </div>
 
-      <div className="page">
-        <div className="stat-row">
-          <div className="stat-card">
-            <div className="stat-label">Total spent</div>
-            <div className="stat-value">{currency}{total.toFixed(2)}</div>
+      <div className="group-page">
+        <div className="group-hero">
+          <div>
+            <h1>{group.name}</h1>
+            <p>{group.description || 'Track shared expenses and settle up beautifully.'}</p>
           </div>
-          <div className="stat-card">
-            <div className="stat-label">Expenses</div>
-            <div className="stat-value">{expenses.length}</div>
+
+          <button className="btn btn-primary" onClick={() => setShowAddExp(true)}>
+            + Add Expense
+          </button>
+        </div>
+
+        <div className="group-summary-grid">
+          <div className="group-summary-card">
+            <span>Total Spent</span>
+            <strong>{currency}{totalSpent.toFixed(2)}</strong>
           </div>
-          <div className="stat-card">
-            <div className="stat-label">Members</div>
-            <div className="stat-value">{members.length}</div>
+
+          <div className="group-summary-card">
+            <span>Expenses</span>
+            <strong>{expenses.length}</strong>
+          </div>
+
+          <div className="group-summary-card">
+            <span>Members</span>
+            <strong>{members.length}</strong>
           </div>
         </div>
 
-        <div className="tabs">
-          {['expenses', 'members', 'settle'].map(t => (
-            <button key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-              {t === 'expenses' ? 'Expenses' : t === 'members' ? 'Members' : 'Settle up'}
-            </button>
-          ))}
+        <div className="group-tabs">
+          <button className={tab === 'expenses' ? 'active' : ''} onClick={() => setTab('expenses')}>
+            Expenses
+          </button>
+          <button className={tab === 'members' ? 'active' : ''} onClick={() => setTab('members')}>
+            Members
+          </button>
+          <button className={tab === 'settle' ? 'active' : ''} onClick={() => setTab('settle')}>
+            Settle Up
+          </button>
         </div>
 
-        {loading ? <div className="empty-state">Loading...</div> : (
+        {loading ? (
+          <div className="empty-state">Loading group...</div>
+        ) : (
           <>
-            {/* EXPENSES TAB */}
             {tab === 'expenses' && (
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="section-title">All expenses</span>
-                  <button className="btn btn-primary btn-sm" onClick={() => setShowAddExp(true)}>+ Add</button>
+              <div className="group-card-section">
+                <div className="group-section-header">
+                  <h2>All Expenses</h2>
+                  <button className="btn btn-primary btn-sm" onClick={() => setShowAddExp(true)}>
+                    + Add
+                  </button>
                 </div>
-                <div className="card" style={{ padding: '0 1.25rem' }}>
+
+                <div className="group-panel">
                   {expenses.length === 0 ? (
-                    <div className="empty-state" style={{ padding: '2rem 0' }}>
-                      <div>No expenses yet</div>
-                      <button className="btn btn-primary btn-sm mt-2" onClick={() => setShowAddExp(true)}>Add first expense</button>
+                    <div className="empty-state">
+                      <div className="empty-icon">💳</div>
+                      <div style={{ fontWeight: 700, marginBottom: 6 }}>No expenses yet</div>
+                      <div>Add your first shared expense to get started.</div>
                     </div>
-                  ) : expenses.map(e => {
-                    const payer = memberMap[e.paid_by]
-                    const isOwn = e.created_by === session.user.id
-                    return (
-                      <div className="expense-row" key={e.id}>
-                        <div className="expense-icon">💳</div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="expense-desc">{e.description}</div>
-                          <div className="expense-meta">Paid by {payer?.name || 'Someone'} · {new Date(e.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</div>
+                  ) : (
+                    expenses.map((expense) => {
+                      const payer = memberMap[expense.paid_by]
+                      const isOwn = expense.created_by === session.user.id
+
+                      return (
+                        <div className="group-expense-row" key={expense.id}>
+                          <div className="group-expense-icon">💳</div>
+
+                          <div className="group-expense-main">
+                            <div className="group-expense-title">{expense.description}</div>
+                            <div className="group-expense-meta">
+                              Paid by {payer?.name || 'Someone'} ·{' '}
+                              {new Date(expense.created_at).toLocaleDateString('en-GB', {
+                                day: 'numeric',
+                                month: 'short',
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="group-expense-amount">
+                            {currency}{Number(expense.amount).toFixed(2)}
+                          </div>
+
+                          {isOwn && (
+                            <button className="delete-btn" onClick={() => deleteExpense(expense.id)}>
+                              Delete
+                            </button>
+                          )}
                         </div>
-                        <div className="expense-amount">{currency}{Number(e.amount).toFixed(2)}</div>
-                        {isOwn && (
-                          <button className="btn btn-sm btn-danger btn-icon" onClick={() => deleteExpense(e.id)} title="Delete" style={{ marginLeft: 4 }}>✕</button>
-                        )}
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  )}
                 </div>
               </div>
             )}
 
-            {/* MEMBERS TAB */}
             {tab === 'members' && (
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="section-title">Group members</span>
-                  <button className="btn btn-outline btn-sm" onClick={() => setShowAddMem(true)}>+ Add member</button>
+              <div className="group-card-section">
+                <div className="group-section-header">
+                  <h2>Group Members</h2>
+                  <button className="btn btn-sm" onClick={() => setShowAddMem(true)}>
+                    + Add Member
+                  </button>
                 </div>
-                <div className="card" style={{ padding: '0 1.25rem' }}>
-                  {members.map((m, i) => {
-                    const p = m.profiles
-                    const c = COLORS[i % COLORS.length]
-                    const b = parseFloat((bal[m.user_id] || 0).toFixed(2))
+
+                <div className="group-panel">
+                  {members.map((member, i) => {
+                    const profile = member.profiles
+                    const color = COLORS[i % COLORS.length]
+                    const balance = parseFloat((balances[member.user_id] || 0).toFixed(2))
+
                     return (
-                      <div className="settle-row" key={m.user_id}>
-                        <div className="avatar" style={{ background: c.bg, color: c.fg }}>{initials(p?.name)}</div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 14, fontWeight: 500 }}>{p?.name}</div>
-                          <div className="text-sm text-muted">{p?.email}</div>
+                      <div className="group-member-row" key={member.user_id}>
+                        <div
+                          className="group-avatar"
+                          style={{ background: color.bg, color: color.fg }}
+                        >
+                          {initials(profile?.name)}
                         </div>
-                        <span className={b > 0 ? 'positive' : b < 0 ? 'negative' : 'neutral'} style={{ fontSize: 13, fontWeight: 500, fontFamily: 'var(--mono)' }}>
-                          {b > 0 ? `+${currency}${b.toFixed(2)}` : b < 0 ? `-${currency}${Math.abs(b).toFixed(2)}` : 'settled'}
-                        </span>
+
+                        <div className="group-member-main">
+                          <div className="group-member-name">{profile?.name}</div>
+                          <div className="group-member-email">{profile?.email}</div>
+                        </div>
+
+                        <div
+                          className={
+                            balance > 0
+                              ? 'group-balance positive'
+                              : balance < 0
+                              ? 'group-balance negative'
+                              : 'group-balance neutral'
+                          }
+                        >
+                          {balance > 0
+                            ? `+${currency}${balance.toFixed(2)}`
+                            : balance < 0
+                            ? `-${currency}${Math.abs(balance).toFixed(2)}`
+                            : 'settled'}
+                        </div>
                       </div>
                     )
                   })}
@@ -183,31 +312,48 @@ export default function GroupDetail({ group, session, onBack }) {
               </div>
             )}
 
-            {/* SETTLE UP TAB */}
             {tab === 'settle' && (
-              <div>
-                <div className="section-title mb-2">Who pays whom</div>
-                <div className="card" style={{ padding: '0 1.25rem' }}>
-                  {txns.length === 0 ? (
-                    <div className="empty-state" style={{ padding: '2rem 0' }}>
-                      <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
-                      <div style={{ fontWeight: 500 }}>Everyone is settled!</div>
+              <div className="group-card-section">
+                <div className="group-section-header">
+                  <h2>Who Pays Whom</h2>
+                </div>
+
+                <div className="group-panel">
+                  {transactions.length === 0 ? (
+                    <div className="empty-state">
+                      <div className="empty-icon">✅</div>
+                      <div style={{ fontWeight: 700 }}>Everyone is settled!</div>
                     </div>
-                  ) : txns.map((t, i) => {
-                    const from = memberMap[t.from]
-                    const to = memberMap[t.to]
-                    return (
-                      <div className="settle-row" key={i}>
-                        <div className="avatar" style={{ background: from?.color?.bg, color: from?.color?.fg }}>{initials(from?.name)}</div>
-                        <div style={{ flex: 1, fontSize: 14 }}>
-                          <span style={{ fontWeight: 500 }}>{from?.name}</span>
-                          <span className="text-muted"> pays </span>
-                          <span style={{ fontWeight: 500 }}>{to?.name}</span>
+                  ) : (
+                    transactions.map((tx, i) => {
+                      const from = memberMap[tx.from]
+                      const to = memberMap[tx.to]
+
+                      return (
+                        <div className="group-member-row" key={i}>
+                          <div
+                            className="group-avatar"
+                            style={{
+                              background: from?.color?.bg,
+                              color: from?.color?.fg
+                            }}
+                          >
+                            {initials(from?.name)}
+                          </div>
+
+                          <div className="group-member-main">
+                            <div className="group-member-name">
+                              {from?.name} <span style={{ color: '#6b7280', fontWeight: 400 }}>pays</span> {to?.name}
+                            </div>
+                          </div>
+
+                          <div className="group-balance positive">
+                            {currency}{tx.amount.toFixed(2)}
+                          </div>
                         </div>
-                        <div style={{ fontFamily: 'var(--mono)', fontWeight: 500, color: 'var(--green-700)', fontSize: 15 }}>{currency}{t.amount.toFixed(2)}</div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  )}
                 </div>
               </div>
             )}
@@ -221,14 +367,21 @@ export default function GroupDetail({ group, session, onBack }) {
           members={members}
           session={session}
           onClose={() => setShowAddExp(false)}
-          onAdded={() => { setShowAddExp(false); fetchAll() }}
+          onAdded={() => {
+            setShowAddExp(false)
+            fetchAll()
+          }}
         />
       )}
+
       {showAddMem && (
         <AddMemberModal
           group={group}
           onClose={() => setShowAddMem(false)}
-          onAdded={() => { setShowAddMem(false); fetchAll() }}
+          onAdded={() => {
+            setShowAddMem(false)
+            fetchAll()
+          }}
         />
       )}
     </div>

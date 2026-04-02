@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 export default function Auth() {
-  const [isSignUp, setIsSignUp] = useState(true)
+  const [isSignUp, setIsSignUp] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -52,7 +52,7 @@ export default function Auth() {
 
   return (
     <div className="auth-page">
-      <div className="auth-overlay" />
+      <div className="auth-overlay"></div>
 
       <div className="auth-card">
         <div className="auth-brand">
@@ -65,16 +65,16 @@ export default function Auth() {
           </div>
           <div>
             <h1>SplitTrack</h1>
-            <p>Split group expenses and track your personal finances.</p>
+            <p>Shared expenses and personal finance, in one clean space.</p>
           </div>
         </div>
 
         <div className="auth-header">
-          <h2>{isSignUp ? 'Create account' : 'Welcome back'}</h2>
+          <h2>{isSignUp ? 'Create your account' : 'Welcome back'}</h2>
           <p>
             {isSignUp
-              ? 'Start managing shared and personal money in one place.'
-              : 'Sign in to continue to your dashboard.'}
+              ? 'Start managing personal and shared money with a calmer, cleaner experience.'
+              : 'Sign in to continue to your financial dashboard.'}
           </p>
         </div>
 
@@ -99,7 +99,7 @@ export default function Auth() {
             <label>Email</label>
             <input
               type="email"
-              placeholder="Enter your email"
+              placeholder="you@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -110,7 +110,7 @@ export default function Auth() {
             <label>Password</label>
             <input
               type="password"
-              placeholder="Enter your password"
+              placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -119,11 +119,7 @@ export default function Auth() {
           </div>
 
           <button className="auth-submit" type="submit" disabled={loading}>
-            {loading
-              ? 'Please wait...'
-              : isSignUp
-              ? 'Create account'
-              : 'Sign in'}
+            {loading ? 'Please wait...' : isSignUp ? 'Create account' : 'Sign in'}
           </button>
         </form>
 
@@ -137,7 +133,7 @@ export default function Auth() {
               setSuccessMsg('')
             }}
           >
-            {isSignUp ? 'Sign in' : 'Create account'}
+            {isSignUp ? 'Sign in' : 'Sign up'}
           </button>
         </div>
       </div>

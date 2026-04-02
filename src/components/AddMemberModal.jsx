@@ -13,58 +13,76 @@ export default function AddMemberModal({ group, onClose, onAdded }) {
     setError('')
     setSuccess('')
 
-    const { data: profile, error: pErr } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('id, name, email')
       .eq('email', email.trim().toLowerCase())
       .maybeSingle()
 
-    if (pErr || !profile) {
-      setError('No SplitTrack account found for that email. Ask them to sign up first!')
+    if (profileError || !profile) {
+      setError('No SplitTrack account found for that email. Ask them to sign up first.')
       setLoading(false)
       return
     }
 
-    const { error: mErr } = await supabase
+    const { error: memberError } = await supabase
       .from('group_members')
-      .insert({ group_id: group.id, user_id: profile.id })
+      .insert({
+        group_id: group.id,
+        user_id: profile.id
+      })
 
-    if (mErr) {
-      if (mErr.code === '23505') setError('This person is already in the group.')
-      else setError(mErr.message)
+    if (memberError) {
+      if (memberError.code === '23505') {
+        setError('This person is already in the group.')
+      } else {
+        setError(memberError.message)
+      }
       setLoading(false)
       return
     }
 
-    setSuccess(`${profile.name} added successfully!`)
+    setSuccess(`${profile.name || profile.email} added successfully.`)
     setEmail('')
     setLoading(false)
-    setTimeout(onAdded, 1000)
+
+    setTimeout(() => {
+      onAdded()
+    }, 900)
   }
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
-        <div className="modal-header">
-          <div className="modal-title">Add a member</div>
-          <button className="btn btn-ghost btn-icon" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="text-sm text-muted mb-3">
-          The person must already have a SplitTrack account. Add them by their email.
-        </div>
-
-        {error && <div className="error-msg">{error}</div>}
-        {success && <div className="success-msg">{success}</div>}
-
-        <form onSubmit={handleAdd}>
-          <div className="field">
-            <label>Their email address</label>
-            <input type="email" placeholder="friend@email.com" value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="premium-modal">
+        <div className="premium-modal-header">
+          <div>
+            <h2>Add Member</h2>
+            <p>Invite someone into this group using the email linked to their SplitTrack account.</p>
           </div>
-          <div className="flex gap-2">
-            <button type="button" className="btn btn-outline btn-full" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
+        </div>
+
+        {error && <div className="auth-message error">{error}</div>}
+        {success && <div className="auth-message success">{success}</div>}
+
+        <form className="premium-modal-form" onSubmit={handleAdd}>
+          <div className="premium-field premium-field-full">
+            <label>Email address</label>
+            <input
+              type="email"
+              placeholder="friend@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoFocus
+            />
+          </div>
+
+          <div className="premium-modal-actions">
+            <button type="button" className="cancel-btn" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="save-btn" disabled={loading}>
               {loading ? 'Searching...' : 'Add member'}
             </button>
           </div>
