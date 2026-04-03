@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import toast from 'react-hot-toast'
 import AddMemberModal from '../components/AddMemberModal'
 import AddExpenseModal from '../components/AddExpenseModal'
 import GroupExpenseChart from '../components/GroupExpenseChart'
@@ -52,8 +53,41 @@ export default function GroupDetail({ session }) {
       setExpenses(expensesData || [])
     } catch (error) {
       console.error('Group fetch error:', error.message)
+      toast.error(error.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDeleteMember = async (memberId) => {
+    const confirmed = window.confirm('Delete this member from the group?')
+    if (!confirmed) return
+
+    try {
+      const { error } = await supabase.from('group_members').delete().eq('id', memberId)
+      if (error) throw error
+
+      toast.success('Member removed')
+      fetchGroupData()
+    } catch (error) {
+      console.error('Delete member error:', error.message)
+      toast.error(error.message)
+    }
+  }
+
+  const handleDeleteExpense = async (expenseId) => {
+    const confirmed = window.confirm('Delete this expense?')
+    if (!confirmed) return
+
+    try {
+      const { error } = await supabase.from('group_expenses').delete().eq('id', expenseId)
+      if (error) throw error
+
+      toast.success('Expense deleted')
+      fetchGroupData()
+    } catch (error) {
+      console.error('Delete expense error:', error.message)
+      toast.error(error.message)
     }
   }
 
@@ -264,6 +298,13 @@ export default function GroupDetail({ session }) {
                           ? `Owes £${Math.abs(net).toFixed(2)}`
                           : 'Settled'}
                       </div>
+
+                      <button
+                        className="delete-btn"
+                        onClick={() => handleDeleteMember(member.id)}
+                      >
+                        Delete
+                      </button>
                     </div>
                   )
                 })
@@ -363,6 +404,13 @@ export default function GroupDetail({ session }) {
                   <div className="group-expense-amount">
                     £{Number(expense.amount || 0).toFixed(2)}
                   </div>
+
+                  <button
+                    className="delete-btn"
+                    onClick={() => handleDeleteExpense(expense.id)}
+                  >
+                    Delete
+                  </button>
                 </div>
               ))
             )}
