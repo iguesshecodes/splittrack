@@ -1,170 +1,129 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import toast from 'react-hot-toast'
 
-export default function AddExpenseModal({ group, members, session, onClose, onAdded }) {
-  const [description, setDescription] = useState('')
-  const [amount, setAmount] = useState('')
-  const [paidBy, setPaidBy] = useState(session.user.id)
-  const [selectedMembers, setSelectedMembers] = useState(members.map((m) => m.user_id))
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+const initialForm = {
+  title: '',
+  amount: '',
+  category: 'General',
+  paid_by: '',
+}
 
-  const currency = group.currency || '£'
+export default function AddExpenseModal({ groupId, members, onClose, onAdded }) {
+  const [form, setForm] = useState(initialForm)
+  const [saving, setSaving] = useState(false)
 
-  function toggleMember(id) {
-    setSelectedMembers((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    )
+  const handleChange = (e) => {
+    const { name, value } = e.target
+    setForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  function initials(name = '') {
-    return name
-      .trim()
-      .split(' ')
-      .map((w) => w[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2)
-  }
+  const selectedMember = members.find((m) => String(m.id) === String(form.paid_by))
 
-  async function handleSubmit(e) {
+  const handleSubmit = async (e) => {
     e.preventDefault()
 
-    if (!description.trim() || !amount || selectedMembers.length === 0) return
-
-    setLoading(true)
-    setError('')
-
-    const amtNum = parseFloat(parseFloat(amount).toFixed(2))
-    const splitAmt = parseFloat((amtNum / selectedMembers.length).toFixed(2))
-
-    const { data: expense, error: expenseError } = await supabase
-      .from('expenses')
-      .insert({
-        group_id: group.id,
-        description: description.trim(),
-        amount: amtNum,
-        paid_by: paidBy,
-        created_by: session.user.id
-      })
-      .select()
-      .single()
-
-    if (expenseError) {
-      setError(expenseError.message)
-      setLoading(false)
+    if (!form.title.trim() || !form.amount || !form.paid_by) {
+      toast.error('Please complete all required fields')
       return
     }
 
-    const splits = selectedMembers.map((uid) => ({
-      expense_id: expense.id,
-      user_id: uid,
-      amount: splitAmt
-    }))
+    try {
+      setSaving(true)
 
-    const { error: splitError } = await supabase
-      .from('expense_splits')
-      .insert(splits)
+      const payload = {
+        group_id: groupId,
+        title: form.title,
+        amount: Number(form.amount),
+        category: form.category,
+        paid_by: form.paid_by,
+        paid_by_name: selectedMember?.name || selectedMember?.email || 'Unknown',
+      }
 
-    if (splitError) {
-      setError(splitError.message)
-      setLoading(false)
-      return
+      const { error } = await supabase.from('group_expenses').insert([payload])
+
+      if (error) throw error
+
+      toast.success('Shared expense added')
+      onAdded?.()
+      onClose?.()
+    } catch (error) {
+      console.error('Add expense error:', error.message)
+      toast.error(error.message)
+    } finally {
+      setSaving(false)
     }
-
-    setLoading(false)
-    onAdded()
   }
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="premium-modal">
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="premium-modal" onClick={(e) => e.stopPropagation()}>
         <div className="premium-modal-header">
           <div>
-            <h2>Add Expense</h2>
-            <p>Add a new shared expense for this group.</p>
+            <h2>Add a shared expense</h2>
+            <p>Record who paid and how much was spent for this group.</p>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
-        </div>
 
-        {error && <div className="auth-message error">{error}</div>}
+          <button className="modal-close-btn" onClick={onClose}>
+            ✕
+          </button>
+        </div>
 
         <form className="premium-modal-form" onSubmit={handleSubmit}>
           <div className="premium-field">
-            <label>Description</label>
+            <label>Title</label>
             <input
               type="text"
-              placeholder="e.g. Dinner at Dishoom"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              required
-              autoFocus
+              name="title"
+              placeholder="e.g. Dinner bill"
+              value={form.title}
+              onChange={handleChange}
             />
           </div>
 
           <div className="premium-field">
-            <label>Amount ({currency})</label>
+            <label>Amount</label>
             <input
               type="number"
-              placeholder="0.00"
-              min="0.01"
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              required
+              name="amount"
+              placeholder="e.g. 120"
+              value={form.amount}
+              onChange={handleChange}
             />
+          </div>
+
+          <div className="premium-field">
+            <label>Category</label>
+            <select name="category" value={form.category} onChange={handleChange}>
+              <option value="General">General</option>
+              <option value="Food">Food</option>
+              <option value="Travel">Travel</option>
+              <option value="Transport">Transport</option>
+              <option value="Rent">Rent</option>
+              <option value="Bills">Bills</option>
+              <option value="Shopping">Shopping</option>
+            </select>
           </div>
 
           <div className="premium-field">
             <label>Paid by</label>
-            <select value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
-              {members.map((m) => (
-                <option key={m.user_id} value={m.user_id}>
-                  {m.profiles?.name || m.profiles?.email}
+            <select name="paid_by" value={form.paid_by} onChange={handleChange}>
+              <option value="">Select member</option>
+              {members.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name || member.email}
                 </option>
               ))}
             </select>
-          </div>
-
-          <div className="premium-field premium-field-full">
-            <label>Split among</label>
-            <div className="member-pill-grid">
-              {members.map((m) => {
-                const selected = selectedMembers.includes(m.user_id)
-
-                return (
-                  <button
-                    type="button"
-                    key={m.user_id}
-                    className={`member-pill ${selected ? 'selected' : ''}`}
-                    onClick={() => toggleMember(m.user_id)}
-                  >
-                    <span className="member-pill-avatar">
-                      {initials(m.profiles?.name)}
-                    </span>
-                    <span>{m.profiles?.name || m.profiles?.email}</span>
-                  </button>
-                )
-              })}
-            </div>
-
-            {selectedMembers.length > 0 && amount && (
-              <div className="split-note">
-                {currency}{(parseFloat(amount) / selectedMembers.length).toFixed(2)} each
-              </div>
-            )}
           </div>
 
           <div className="premium-modal-actions">
             <button type="button" className="cancel-btn" onClick={onClose}>
               Cancel
             </button>
-            <button
-              type="submit"
-              className="save-btn"
-              disabled={loading || selectedMembers.length === 0}
-            >
-              {loading ? 'Adding...' : 'Add Expense'}
+
+            <button type="submit" className="save-btn" disabled={saving}>
+              {saving ? 'Adding...' : 'Add expense'}
             </button>
           </div>
         </form>

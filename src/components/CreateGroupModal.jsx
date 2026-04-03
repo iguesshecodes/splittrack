@@ -1,107 +1,110 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import toast from 'react-hot-toast'
+
+const initialForm = {
+  name: '',
+  description: '',
+  emoji: '💸',
+}
 
 export default function CreateGroupModal({ session, onClose, onCreated }) {
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [currency, setCurrency] = useState('£')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [form, setForm] = useState(initialForm)
+  const [saving, setSaving] = useState(false)
 
-  async function handleCreate(e) {
+  const handleChange = (e) => {
+    const { name, value } = e.target
+    setForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!name.trim()) return
 
-    setLoading(true)
-    setError('')
-
-    const { data: group, error: groupError } = await supabase
-      .from('groups')
-      .insert({
-        name: name.trim(),
-        description: description.trim(),
-        currency,
-        created_by: session.user.id
-      })
-      .select()
-      .single()
-
-    if (groupError) {
-      setError(groupError.message)
-      setLoading(false)
+    if (!form.name.trim()) {
+      toast.error('Please enter a group name')
       return
     }
 
-    const { error: memberError } = await supabase
-      .from('group_members')
-      .insert({
-        group_id: group.id,
-        user_id: session.user.id
-      })
+    try {
+      setSaving(true)
 
-    if (memberError) {
-      setError(memberError.message)
-      setLoading(false)
-      return
+      const payload = {
+        name: form.name,
+        description: form.description,
+        emoji: form.emoji,
+        created_by: session?.user?.id,
+      }
+
+      const { error } = await supabase.from('groups').insert([payload])
+
+      if (error) throw error
+
+      toast.success('Group created successfully')
+      onCreated?.()
+      onClose?.()
+    } catch (error) {
+      console.error('Create group error:', error.message)
+      toast.error(error.message)
+    } finally {
+      setSaving(false)
     }
-
-    setLoading(false)
-    onCreated()
   }
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="premium-modal">
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="premium-modal" onClick={(e) => e.stopPropagation()}>
         <div className="premium-modal-header">
           <div>
-            <h2>Create Group</h2>
-            <p>Start a new shared space for trips, flatmates, dinners, or events.</p>
+            <h2>Create a new group</h2>
+            <p>Set up a shared space for trips, rent, dinners, or anything split.</p>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
+
+          <button className="modal-close-btn" onClick={onClose}>
+            ✕
+          </button>
         </div>
 
-        {error && <div className="auth-message error">{error}</div>}
-
-        <form className="premium-modal-form" onSubmit={handleCreate}>
-          <div className="premium-field premium-field-full">
+        <form className="premium-modal-form" onSubmit={handleSubmit}>
+          <div className="premium-field">
             <label>Group name</label>
             <input
               type="text"
-              placeholder="e.g. Goa Trip 2025"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              autoFocus
+              name="name"
+              placeholder="e.g. Bali Trip"
+              value={form.name}
+              onChange={handleChange}
+            />
+          </div>
+
+          <div className="premium-field">
+            <label>Emoji</label>
+            <input
+              type="text"
+              name="emoji"
+              placeholder="💸"
+              value={form.emoji}
+              onChange={handleChange}
             />
           </div>
 
           <div className="premium-field premium-field-full">
             <label>Description</label>
-            <input
-              type="text"
-              placeholder="What’s this group for?"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+            <textarea
+              name="description"
+              rows="4"
+              placeholder="A short note about this group..."
+              value={form.description}
+              onChange={handleChange}
             />
-          </div>
-
-          <div className="premium-field">
-            <label>Currency</label>
-            <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-              <option value="£">£ GBP</option>
-              <option value="€">€ EUR</option>
-              <option value="$">$ USD</option>
-              <option value="₹">₹ INR</option>
-              <option value="AED">AED</option>
-            </select>
           </div>
 
           <div className="premium-modal-actions">
             <button type="button" className="cancel-btn" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="save-btn" disabled={loading}>
-              {loading ? 'Creating...' : 'Create group'}
+
+            <button type="submit" className="save-btn" disabled={saving}>
+              {saving ? 'Creating...' : 'Create group'}
             </button>
           </div>
         </form>
