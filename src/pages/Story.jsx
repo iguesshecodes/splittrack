@@ -1,8 +1,7 @@
-import Reveal from '../components/Reveal'
+import PageTransition from '../components/PageTransition'
 import PublicNavbar from '../components/PublicNavbar'
 import PublicFooter from '../components/PublicFooter'
-import PageTransition from '../components/PageTransition'
-import TestimonialsSection from '../components/TestimonialsSection'
+import Reveal from '../components/Reveal'
 
 export default function Story({ session }) {
   return (
@@ -10,82 +9,80 @@ export default function Story({ session }) {
       <div className="public-page">
         <PublicNavbar session={session} />
 
-        <section className="public-hero">
-          <Reveal className="public-hero-inner">
-            <span className="story-label">Our story</span>
-            <h1>Finance tools should feel less cold and more human.</h1>
-            <p>
-              SplitTrack was created around one simple idea: money management should be
-              easier to understand, softer to use, and better designed for real modern
-              life.
-            </p>
-          </Reveal>
+        <section className="editorial-hero">
+          <div className="editorial-hero-grid">
+            <Reveal className="editorial-hero-copy">
+              <span className="story-label">Our story</span>
+              <h1>SplitTrack started with one simple thought: money tools can feel better.</h1>
+              <p>
+                Most finance products solve the functional side of money but ignore the
+                emotional and visual side. SplitTrack was designed to bridge both.
+              </p>
+            </Reveal>
+
+            <Reveal delay={0.1} className="editorial-hero-image">
+              <img src="/images/hero.jpg" alt="Story lifestyle" />
+            </Reveal>
+          </div>
         </section>
 
-        <section className="public-feature-grid">
-          <Reveal delay={0.05}>
-            <div className="public-feature-card large">
-              <span>Why it exists</span>
-              <h3>Because most money apps still feel too heavy.</h3>
-              <p>
-                Traditional finance tools focus on raw utility but often ignore how people
-                actually feel while using them. SplitTrack is designed to reduce that
-                stress.
-              </p>
-            </div>
-          </Reveal>
-
-          <Reveal delay={0.1}>
-            <div className="public-feature-card">
-              <span>What we believe</span>
-              <h3>Clarity is a feature.</h3>
-              <p>
-                Better layout, better spacing, better summaries, and better flows can make
-                people feel more in control of their money.
-              </p>
-            </div>
-          </Reveal>
-
-          <Reveal delay={0.15}>
-            <div className="public-feature-card">
-              <span>Who it’s for</span>
-              <h3>Students, flatmates, couples, friends, and everyday people.</h3>
-              <p>
-                Anyone balancing personal spending and shared expenses deserves something
-                cleaner and calmer.
-              </p>
-            </div>
-          </Reveal>
-        </section>
-
-        <section className="public-editorial-section">
-          <Reveal className="public-editorial-copy">
-            <span className="story-label">The SplitTrack mindset</span>
-            <h2>Useful enough to trust. Soft enough to enjoy.</h2>
+        <section className="editorial-story-section">
+          <Reveal className="editorial-story-block">
+            <span className="story-label">What we noticed</span>
+            <h2>Expense tracking felt cold. Split apps felt transactional.</h2>
             <p>
-              We want SplitTrack to sit between utility and identity — a product that
-              helps with financial organisation, but also feels contemporary, personal, and
-              visually expressive.
+              The problem wasn’t just utility — it was experience. We wanted to create
+              something that could still be trusted, but felt more intuitive, personal,
+              and enjoyable.
             </p>
           </Reveal>
 
-          <Reveal delay={0.1} className="public-editorial-panel">
-            <div className="public-editorial-line">
-              <strong>Less clutter</strong>
-              <span>More breathing room in every interaction.</span>
+          <Reveal delay={0.1} className="editorial-story-grid">
+            <div className="editorial-story-card">
+              <h3>Useful first</h3>
+              <p>Real product logic, real data flows, and real shared expense handling.</p>
             </div>
-            <div className="public-editorial-line">
-              <strong>Less stress</strong>
-              <span>More confidence when tracking and splitting.</span>
+
+            <div className="editorial-story-card">
+              <h3>Design matters</h3>
+              <p>Better hierarchy and visual rhythm create confidence and clarity.</p>
             </div>
-            <div className="public-editorial-line">
-              <strong>Less boring design</strong>
-              <span>More premium personality in the product experience.</span>
+
+            <div className="editorial-story-card">
+              <h3>Built for real life</h3>
+              <p>Students, flatmates, trips, dinner groups, and everyday personal budgets.</p>
             </div>
           </Reveal>
         </section>
 
-        <TestimonialsSection />
+        <section className="image-story-band">
+          <Reveal className="image-story-band-grid">
+            <div className="image-story-band-copy">
+              <span className="story-label">The vibe</span>
+              <h2>Playful. Premium. Calm. Useful.</h2>
+              <p>
+                SplitTrack sits in the space between clean product design and a more
+                expressive, modern digital identity.
+              </p>
+            </div>
+
+            <div className="image-story-band-panel">
+              <div className="image-story-stat">
+                <span>Not boring</span>
+                <strong>Finance with personality</strong>
+              </div>
+              <div className="image-story-stat">
+                <span>Not chaotic</span>
+                <strong>Still clean and focused</strong>
+              </div>
+              <div className="image-story-stat">
+                <span>Not just visual</span>
+                <strong>Backed by working product logic</strong>
+              </div>
+            </div>
+          </Reveal>
+        </section>
+
         <PublicFooter />
       </div>
     </PageTransition>

@@ -21,6 +21,8 @@ export default function Personal({ session }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
+  const [editingId, setEditingId] = useState(null)
+
   const [budget, setBudget] = useState('')
   const [savedBudget, setSavedBudget] = useState(0)
   const [savingBudget, setSavingBudget] = useState(false)
@@ -138,31 +140,71 @@ export default function Personal({ session }) {
     try {
       setSaving(true)
 
-      const payload = {
-        user_id: session?.user?.id,
-        title: form.title,
-        amount: Number(form.amount),
-        type: form.type,
-        category: form.category,
-        note: form.note,
+      if (editingId) {
+        const { error } = await supabase
+          .from('personal_expenses')
+          .update({
+            title: form.title,
+            amount: Number(form.amount),
+            type: form.type,
+            category: form.category,
+            note: form.note,
+          })
+          .eq('id', editingId)
+
+        if (error) throw error
+
+        toast.success('Entry updated')
+      } else {
+        const payload = {
+          user_id: session?.user?.id,
+          title: form.title,
+          amount: Number(form.amount),
+          type: form.type,
+          category: form.category,
+          note: form.note,
+        }
+
+        const { error } = await supabase.from('personal_expenses').insert([payload])
+
+        if (error) throw error
+
+        toast.success('Entry saved')
       }
 
-      const { error } = await supabase.from('personal_expenses').insert([payload])
-
-      if (error) throw error
-
       setForm(initialForm)
+      setEditingId(null)
       fetchExpenses()
-      toast.success('Entry saved')
     } catch (error) {
-      console.error('Add expense error:', error.message)
+      console.error('Save expense error:', error.message)
       toast.error(error.message)
     } finally {
       setSaving(false)
     }
   }
 
+  const handleEdit = (item) => {
+    setEditingId(item.id)
+    setForm({
+      title: item.title || '',
+      amount: String(item.amount || ''),
+      type: item.type || 'expense',
+      category: item.category || 'General',
+      note: item.note || '',
+    })
+
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setForm(initialForm)
+  }
+
   const handleDelete = async (id) => {
+    const confirmed = window.confirm('Delete this entry?')
+    if (!confirmed) return
+
     try {
       const { error } = await supabase.from('personal_expenses').delete().eq('id', id)
       if (error) throw error
@@ -267,7 +309,7 @@ export default function Personal({ session }) {
       <div className="personal-layout-grid">
         <section className="personal-card personal-form-card">
           <div className="card-header">
-            <h2>Add a new entry</h2>
+            <h2>{editingId ? 'Edit entry' : 'Add a new entry'}</h2>
           </div>
 
           <form className="personal-form" onSubmit={handleSubmit}>
@@ -315,8 +357,24 @@ export default function Personal({ session }) {
 
             <div className="form-actions">
               <button type="submit" className="save-btn" disabled={saving}>
-                {saving ? 'Saving...' : 'Save entry'}
+                {saving
+                  ? editingId
+                    ? 'Updating...'
+                    : 'Saving...'
+                  : editingId
+                  ? 'Update entry'
+                  : 'Save entry'}
               </button>
+
+              {editingId && (
+                <button
+                  type="button"
+                  className="cancel-btn"
+                  onClick={handleCancelEdit}
+                >
+                  Cancel edit
+                </button>
+              )}
             </div>
           </form>
         </section>
@@ -405,6 +463,13 @@ export default function Personal({ session }) {
                     <td>{item.note || '—'}</td>
                     <td>
                       <div className="table-actions">
+                        <button
+                          className="edit-btn"
+                          onClick={() => handleEdit(item)}
+                        >
+                          Edit
+                        </button>
+
                         <button
                           className="delete-btn"
                           onClick={() => handleDelete(item.id)}

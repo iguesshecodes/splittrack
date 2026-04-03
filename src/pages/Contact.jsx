@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
-import Reveal from '../components/Reveal'
+import PageTransition from '../components/PageTransition'
 import PublicNavbar from '../components/PublicNavbar'
 import PublicFooter from '../components/PublicFooter'
-import PageTransition from '../components/PageTransition'
+import Reveal from '../components/Reveal'
 
 export default function Contact({ session }) {
   const [form, setForm] = useState({
@@ -34,14 +34,21 @@ export default function Contact({ session }) {
       <div className="public-page">
         <PublicNavbar session={session} />
 
-        <section className="public-hero">
-          <Reveal className="public-hero-inner">
-            <span className="story-label">Contact</span>
-            <h1>Let’s talk about money, product, and better digital experiences.</h1>
-            <p>
-              Got feedback, ideas, questions, or collaboration thoughts? Send a message.
-            </p>
-          </Reveal>
+        <section className="editorial-hero">
+          <div className="editorial-hero-grid">
+            <Reveal className="editorial-hero-copy">
+              <span className="story-label">Contact</span>
+              <h1>Let’s talk about product, design, and better money experiences.</h1>
+              <p>
+                Whether it’s feedback, collaboration, ideas, or product thoughts — feel
+                free to send a message.
+              </p>
+            </Reveal>
+
+            <Reveal delay={0.1} className="editorial-hero-image">
+              <img src="/images/hero.jpg" alt="Contact visual" />
+            </Reveal>
+          </div>
         </section>
 
         <section className="contact-section">

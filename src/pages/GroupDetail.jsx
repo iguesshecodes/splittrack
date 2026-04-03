@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
 import AddMemberModal from '../components/AddMemberModal'
 import AddExpenseModal from '../components/AddExpenseModal'
+import EditMemberModal from '../components/EditMemberModal'
+import EditExpenseModal from '../components/EditExpenseModal'
 import GroupExpenseChart from '../components/GroupExpenseChart'
 
 export default function GroupDetail({ session }) {
@@ -13,9 +15,15 @@ export default function GroupDetail({ session }) {
   const [group, setGroup] = useState(null)
   const [members, setMembers] = useState([])
   const [expenses, setExpenses] = useState([])
+  const [expenseSplits, setExpenseSplits] = useState([])
+  const [settlementHistory, setSettlementHistory] = useState([])
   const [loading, setLoading] = useState(true)
+
   const [showAddMember, setShowAddMember] = useState(false)
   const [showAddExpense, setShowAddExpense] = useState(false)
+
+  const [editingMember, setEditingMember] = useState(null)
+  const [editingExpense, setEditingExpense] = useState(null)
 
   useEffect(() => {
     if (groupId) {
@@ -44,18 +52,92 @@ export default function GroupDetail({ session }) {
         .eq('group_id', groupId)
         .order('created_at', { ascending: false })
 
+      const { data: settlementsData, error: settlementsError } = await supabase
+        .from('settlements')
+        .select('*')
+        .eq('group_id', groupId)
+        .order('created_at', { ascending: false })
+
       if (groupError) throw groupError
       if (membersError) throw membersError
       if (expensesError) throw expensesError
+      if (settlementsError) throw settlementsError
+
+      const expenseIds = (expensesData || []).map((expense) => expense.id)
+
+      let splitsData = []
+      if (expenseIds.length > 0) {
+        const { data: fetchedSplits, error: splitsError } = await supabase
+          .from('expense_splits')
+          .select('*')
+          .in('expense_id', expenseIds)
+
+        if (splitsError) throw splitsError
+        splitsData = fetchedSplits || []
+      }
 
       setGroup(groupData)
       setMembers(membersData || [])
       setExpenses(expensesData || [])
+      setExpenseSplits(splitsData)
+      setSettlementHistory(settlementsData || [])
     } catch (error) {
       console.error('Group fetch error:', error.message)
       toast.error(error.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDeleteGroup = async () => {
+    const confirmed = window.confirm('Delete this whole group? This cannot be undone.')
+    if (!confirmed) return
+
+    try {
+      const expenseIds = expenses.map((expense) => expense.id)
+
+      if (expenseIds.length > 0) {
+        const { error: deleteSplitsError } = await supabase
+          .from('expense_splits')
+          .delete()
+          .in('expense_id', expenseIds)
+
+        if (deleteSplitsError) throw deleteSplitsError
+      }
+
+      const { error: deleteExpensesError } = await supabase
+        .from('group_expenses')
+        .delete()
+        .eq('group_id', groupId)
+
+      if (deleteExpensesError) throw deleteExpensesError
+
+      const { error: deleteSettlementsError } = await supabase
+        .from('settlements')
+        .delete()
+        .eq('group_id', groupId)
+
+      if (deleteSettlementsError) throw deleteSettlementsError
+
+      const { error: deleteMembersError } = await supabase
+        .from('group_members')
+        .delete()
+        .eq('group_id', groupId)
+
+      if (deleteMembersError) throw deleteMembersError
+
+      const { error: deleteGroupError } = await supabase
+        .from('groups')
+        .delete()
+        .eq('id', groupId)
+
+      if (deleteGroupError) throw deleteGroupError
+
+      toast.success('Group deleted')
+      navigate('/app/dashboard')
+    } catch (error) {
+      console.error('Delete group error:', error.message)
+      toast.error(error.message)
     }
   }
 
@@ -80,6 +162,13 @@ export default function GroupDetail({ session }) {
     if (!confirmed) return
 
     try {
+      const { error: splitDeleteError } = await supabase
+        .from('expense_splits')
+        .delete()
+        .eq('expense_id', expenseId)
+
+      if (splitDeleteError) throw splitDeleteError
+
       const { error } = await supabase.from('group_expenses').delete().eq('id', expenseId)
       if (error) throw error
 
@@ -87,6 +176,26 @@ export default function GroupDetail({ session }) {
       fetchGroupData()
     } catch (error) {
       console.error('Delete expense error:', error.message)
+      toast.error(error.message)
+    }
+  }
+
+  const handleMarkSettlement = async (item) => {
+    try {
+      const payload = {
+        group_id: groupId,
+        from_member_name: item.from,
+        to_member_name: item.to,
+        amount: item.amount,
+      }
+
+      const { error } = await supabase.from('settlements').insert([payload])
+      if (error) throw error
+
+      toast.success('Settlement marked as completed')
+      fetchGroupData()
+    } catch (error) {
+      console.error('Settlement save error:', error.message)
       toast.error(error.message)
     }
   }
@@ -106,13 +215,12 @@ export default function GroupDetail({ session }) {
   const balances = useMemo(() => {
     if (!members.length) return []
 
-    const totalSpent = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0)
-    const fairShare = members.length ? totalSpent / members.length : 0
-
     const paidMap = {}
+    const owedMap = {}
 
     members.forEach((member) => {
       paidMap[String(member.id)] = 0
+      owedMap[String(member.id)] = 0
     })
 
     expenses.forEach((expense) => {
@@ -120,20 +228,48 @@ export default function GroupDetail({ session }) {
       paidMap[payerId] = (paidMap[payerId] || 0) + Number(expense.amount || 0)
     })
 
-    return members.map((member) => {
+    expenseSplits.forEach((split) => {
+      const memberId = String(split.member_id)
+      owedMap[memberId] = (owedMap[memberId] || 0) + Number(split.amount || 0)
+    })
+
+    let result = members.map((member) => {
       const paid = paidMap[String(member.id)] || 0
-      const net = paid - fairShare
+      const owes = owedMap[String(member.id)] || 0
+      const net = paid - owes
 
       return {
         id: member.id,
         name: member.name || member.email || 'Unknown',
         email: member.email || '',
         paid,
-        owes: fairShare,
+        owes,
         net,
       }
     })
-  }, [members, expenses])
+
+    settlementHistory.forEach((settlement) => {
+      result = result.map((person) => {
+        if (person.name === settlement.from_member_name) {
+          return {
+            ...person,
+            net: person.net + Number(settlement.amount || 0),
+          }
+        }
+
+        if (person.name === settlement.to_member_name) {
+          return {
+            ...person,
+            net: person.net - Number(settlement.amount || 0),
+          }
+        }
+
+        return person
+      })
+    })
+
+    return result
+  }, [members, expenses, expenseSplits, settlementHistory])
 
   const settlements = useMemo(() => {
     const creditors = balances
@@ -227,6 +363,10 @@ export default function GroupDetail({ session }) {
               Add expense
             </button>
 
+            <button className="btn danger-btn" onClick={handleDeleteGroup}>
+              Delete group
+            </button>
+
             <button className="back-btn" onClick={() => navigate('/app/dashboard')}>
               Back to dashboard
             </button>
@@ -299,12 +439,21 @@ export default function GroupDetail({ session }) {
                           : 'Settled'}
                       </div>
 
-                      <button
-                        className="delete-btn"
-                        onClick={() => handleDeleteMember(member.id)}
-                      >
-                        Delete
-                      </button>
+                      <div className="table-actions">
+                        <button
+                          className="edit-btn"
+                          onClick={() => setEditingMember(member)}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          className="delete-btn"
+                          onClick={() => handleDeleteMember(member.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   )
                 })
@@ -368,6 +517,44 @@ export default function GroupDetail({ session }) {
                   </div>
 
                   <div className="settlement-amount">£{item.amount.toFixed(2)}</div>
+
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => handleMarkSettlement(item)}
+                  >
+                    Mark settled
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="group-card-section">
+          <div className="group-section-header">
+            <h2>Settlement history</h2>
+          </div>
+
+          <div className="group-panel">
+            {settlementHistory.length === 0 ? (
+              <div className="dashboard-empty-mini">
+                No settlements recorded yet.
+              </div>
+            ) : (
+              settlementHistory.map((item) => (
+                <div key={item.id} className="settlement-row">
+                  <div className="settlement-main">
+                    <div className="settlement-title">
+                      {item.from_member_name} → {item.to_member_name}
+                    </div>
+                    <div className="settlement-meta">
+                      Completed settlement
+                    </div>
+                  </div>
+
+                  <div className="settlement-amount">
+                    £{Number(item.amount || 0).toFixed(2)}
+                  </div>
                 </div>
               ))
             )}
@@ -397,7 +584,8 @@ export default function GroupDetail({ session }) {
                     </div>
                     <div className="group-expense-meta">
                       {expense.category || 'General'} • Paid by{' '}
-                      {expense.paid_by_name || expense.paid_by || 'Unknown'}
+                      {expense.paid_by_name || expense.paid_by || 'Unknown'} •{' '}
+                      {expense.split_type === 'custom' ? 'Custom split' : 'Equal split'}
                     </div>
                   </div>
 
@@ -405,12 +593,21 @@ export default function GroupDetail({ session }) {
                     £{Number(expense.amount || 0).toFixed(2)}
                   </div>
 
-                  <button
-                    className="delete-btn"
-                    onClick={() => handleDeleteExpense(expense.id)}
-                  >
-                    Delete
-                  </button>
+                  <div className="table-actions">
+                    <button
+                      className="edit-btn"
+                      onClick={() => setEditingExpense(expense)}
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      className="delete-btn"
+                      onClick={() => handleDeleteExpense(expense.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -432,6 +629,23 @@ export default function GroupDetail({ session }) {
           members={members}
           onClose={() => setShowAddExpense(false)}
           onAdded={fetchGroupData}
+        />
+      )}
+
+      {editingMember && (
+        <EditMemberModal
+          member={editingMember}
+          onClose={() => setEditingMember(null)}
+          onUpdated={fetchGroupData}
+        />
+      )}
+
+      {editingExpense && (
+        <EditExpenseModal
+          expense={editingExpense}
+          members={members}
+          onClose={() => setEditingExpense(null)}
+          onUpdated={fetchGroupData}
         />
       )}
     </>

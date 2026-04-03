@@ -2,26 +2,47 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
 
-const initialForm = {
-  title: '',
-  amount: '',
-  category: 'General',
-  paid_by: '',
-  split_type: 'equal',
-}
+export default function EditExpenseModal({
+  expense,
+  members,
+  onClose,
+  onUpdated,
+}) {
+  const [form, setForm] = useState({
+    title: expense?.title || '',
+    amount: expense?.amount || '',
+    category: expense?.category || 'General',
+    paid_by: expense?.paid_by || '',
+    split_type: expense?.split_type || 'equal',
+  })
 
-export default function AddExpenseModal({ groupId, members, onClose, onAdded }) {
-  const [form, setForm] = useState(initialForm)
   const [saving, setSaving] = useState(false)
   const [customSplits, setCustomSplits] = useState({})
 
   useEffect(() => {
-    const initial = {}
-    members.forEach((member) => {
-      initial[member.id] = ''
-    })
-    setCustomSplits(initial)
-  }, [members])
+    loadSplits()
+  }, [])
+
+  const loadSplits = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('expense_splits')
+        .select('*')
+        .eq('expense_id', expense.id)
+
+      if (error) throw error
+
+      const mapped = {}
+      members.forEach((member) => {
+        const existing = (data || []).find((split) => String(split.member_id) === String(member.id))
+        mapped[member.id] = existing ? existing.amount : ''
+      })
+
+      setCustomSplits(mapped)
+    } catch (error) {
+      console.error('Load splits error:', error.message)
+    }
+  }
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -38,9 +59,7 @@ export default function AddExpenseModal({ groupId, members, onClose, onAdded }) 
   const selectedMember = members.find((m) => String(m.id) === String(form.paid_by))
 
   const customSplitTotal = useMemo(() => {
-    return Object.values(customSplits).reduce((sum, value) => {
-      return sum + Number(value || 0)
-    }, 0)
+    return Object.values(customSplits).reduce((sum, value) => sum + Number(value || 0), 0)
   }, [customSplits])
 
   const handleSubmit = async (e) => {
@@ -63,53 +82,55 @@ export default function AddExpenseModal({ groupId, members, onClose, onAdded }) 
     try {
       setSaving(true)
 
-      const payload = {
-        group_id: groupId,
-        title: form.title,
-        amount: totalAmount,
-        category: form.category,
-        paid_by: form.paid_by,
-        paid_by_name: selectedMember?.name || selectedMember?.email || 'Unknown',
-        split_type: form.split_type,
-      }
-
-      const { data: expenseData, error } = await supabase
+      const { error } = await supabase
         .from('group_expenses')
-        .insert([payload])
-        .select()
-        .single()
+        .update({
+          title: form.title,
+          amount: totalAmount,
+          category: form.category,
+          paid_by: form.paid_by,
+          paid_by_name: selectedMember?.name || selectedMember?.email || 'Unknown',
+          split_type: form.split_type,
+        })
+        .eq('id', expense.id)
 
       if (error) throw error
 
-      const expenseId = expenseData.id
+      const { error: deleteSplitsError } = await supabase
+        .from('expense_splits')
+        .delete()
+        .eq('expense_id', expense.id)
+
+      if (deleteSplitsError) throw deleteSplitsError
 
       let splitRows = []
 
       if (form.split_type === 'equal') {
         const equalAmount = totalAmount / members.length
-
         splitRows = members.map((member) => ({
-          expense_id: expenseId,
+          expense_id: expense.id,
           member_id: member.id,
           amount: equalAmount,
         }))
       } else {
         splitRows = members.map((member) => ({
-          expense_id: expenseId,
+          expense_id: expense.id,
           member_id: member.id,
           amount: Number(customSplits[member.id] || 0),
         }))
       }
 
-      const { error: splitError } = await supabase.from('expense_splits').insert(splitRows)
+      const { error: insertSplitsError } = await supabase
+        .from('expense_splits')
+        .insert(splitRows)
 
-      if (splitError) throw splitError
+      if (insertSplitsError) throw insertSplitsError
 
-      toast.success('Shared expense added')
-      onAdded?.()
+      toast.success('Expense updated')
+      onUpdated?.()
       onClose?.()
     } catch (error) {
-      console.error('Add expense error:', error.message)
+      console.error('Edit expense error:', error.message)
       toast.error(error.message)
     } finally {
       setSaving(false)
@@ -121,8 +142,8 @@ export default function AddExpenseModal({ groupId, members, onClose, onAdded }) 
       <div className="premium-modal" onClick={(e) => e.stopPropagation()}>
         <div className="premium-modal-header">
           <div>
-            <h2>Add a shared expense</h2>
-            <p>Record who paid and how this expense should be split.</p>
+            <h2>Edit expense</h2>
+            <p>Update title, amount, payer, and split style.</p>
           </div>
 
           <button className="modal-close-btn" onClick={onClose}>
@@ -133,13 +154,7 @@ export default function AddExpenseModal({ groupId, members, onClose, onAdded }) 
         <form className="premium-modal-form" onSubmit={handleSubmit}>
           <div className="premium-field">
             <label>Title</label>
-            <input
-              type="text"
-              name="title"
-              placeholder="e.g. Dinner bill"
-              value={form.title}
-              onChange={handleChange}
-            />
+            <input name="title" value={form.title} onChange={handleChange} />
           </div>
 
           <div className="premium-field">
@@ -147,7 +162,6 @@ export default function AddExpenseModal({ groupId, members, onClose, onAdded }) 
             <input
               type="number"
               name="amount"
-              placeholder="e.g. 120"
               value={form.amount}
               onChange={handleChange}
             />
@@ -169,7 +183,6 @@ export default function AddExpenseModal({ groupId, members, onClose, onAdded }) 
           <div className="premium-field">
             <label>Paid by</label>
             <select name="paid_by" value={form.paid_by} onChange={handleChange}>
-              <option value="">Select member</option>
               {members.map((member) => (
                 <option key={member.id} value={member.id}>
                   {member.name || member.email}
@@ -196,7 +209,6 @@ export default function AddExpenseModal({ groupId, members, onClose, onAdded }) 
                     <span>{member.name || member.email}</span>
                     <input
                       type="number"
-                      placeholder="0"
                       value={customSplits[member.id] || ''}
                       onChange={(e) => handleSplitChange(member.id, e.target.value)}
                     />
@@ -215,9 +227,8 @@ export default function AddExpenseModal({ groupId, members, onClose, onAdded }) 
             <button type="button" className="cancel-btn" onClick={onClose}>
               Cancel
             </button>
-
             <button type="submit" className="save-btn" disabled={saving}>
-              {saving ? 'Adding...' : 'Add expense'}
+              {saving ? 'Saving...' : 'Save changes'}
             </button>
           </div>
         </form>

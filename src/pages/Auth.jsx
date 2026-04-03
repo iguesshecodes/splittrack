@@ -1,108 +1,91 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import toast from 'react-hot-toast'
 
 export default function Auth() {
-  const [isSignUp, setIsSignUp] = useState(false)
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [isSignup, setIsSignup] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState('')
-  const [successMsg, setSuccessMsg] = useState('')
 
-  async function handleSubmit(e) {
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+  })
+
+  const handleChange = (e) => {
+    const { name, value } = e.target
+    setForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    setLoading(true)
-    setErrorMsg('')
-    setSuccessMsg('')
 
-    try {
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { name }
-          }
-        })
-
-        if (error) {
-          setErrorMsg(error.message)
-        } else {
-          setSuccessMsg('Account created successfully. You can now sign in.')
-          setIsSignUp(false)
-          setPassword('')
-        }
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        })
-
-        if (error) {
-          setErrorMsg(error.message)
-        }
-      }
-    } catch (err) {
-      setErrorMsg('Something went wrong. Please try again.')
+    if (!form.email || !form.password) {
+      toast.error('Please complete all fields')
+      return
     }
 
-    setLoading(false)
+    try {
+      setLoading(true)
+
+      if (isSignup) {
+        const { error } = await supabase.auth.signUp({
+          email: form.email,
+          password: form.password,
+        })
+
+        if (error) throw error
+
+        toast.success('Account created. You can now log in.')
+        setIsSignup(false)
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: form.email,
+          password: form.password,
+        })
+
+        if (error) throw error
+
+        toast.success('Welcome back ✨')
+      }
+    } catch (error) {
+      console.error('Auth error:', error.message)
+      toast.error(error.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-overlay"></div>
+    <div className="auth-page auth-page-v2">
+      <div className="auth-overlay" />
 
-      <div className="auth-card">
+      <div className="auth-card auth-card-v2">
         <div className="auth-brand">
-          <div className="auth-logo">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="10.5" width="7" height="3" rx="1.5" fill="white" />
-              <rect x="14" y="10.5" width="7" height="3" rx="1.5" fill="white" />
-              <circle cx="12" cy="12" r="3" fill="none" stroke="white" strokeWidth="2" />
-            </svg>
-          </div>
+          <div className="auth-logo">💸</div>
           <div>
             <h1>SplitTrack</h1>
-            <p>Shared expenses and personal finance, in one clean space.</p>
+            <p>Money, but calmer and better designed.</p>
           </div>
         </div>
 
         <div className="auth-header">
-          <h2>{isSignUp ? 'Create your account' : 'Welcome back'}</h2>
+          <h2>{isSignup ? 'Create your account' : 'Welcome back'}</h2>
           <p>
-            {isSignUp
-              ? 'Start managing personal and shared money with a calmer, cleaner experience.'
-              : 'Sign in to continue to your financial dashboard.'}
+            {isSignup
+              ? 'Start tracking your spending and splitting money in one clean space.'
+              : 'Log in to access your money dashboard, budgets, and shared groups.'}
           </p>
         </div>
 
-        {errorMsg && <div className="auth-message error">{errorMsg}</div>}
-        {successMsg && <div className="auth-message success">{successMsg}</div>}
-
         <form className="auth-form" onSubmit={handleSubmit}>
-          {isSignUp && (
-            <div className="auth-field">
-              <label>Your name</label>
-              <input
-                type="text"
-                placeholder="Enter your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </div>
-          )}
-
           <div className="auth-field">
             <label>Email</label>
             <input
               type="email"
-              placeholder="you@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
+              name="email"
+              placeholder="you@example.com"
+              value={form.email}
+              onChange={handleChange}
             />
           </div>
 
@@ -110,31 +93,33 @@ export default function Auth() {
             <label>Password</label>
             <input
               type="password"
+              name="password"
               placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
+              value={form.password}
+              onChange={handleChange}
             />
           </div>
 
-          <button className="auth-submit" type="submit" disabled={loading}>
-            {loading ? 'Please wait...' : isSignUp ? 'Create account' : 'Sign in'}
+          <button type="submit" className="auth-submit" disabled={loading}>
+            {loading
+              ? isSignup
+                ? 'Creating account...'
+                : 'Logging in...'
+              : isSignup
+              ? 'Create account'
+              : 'Log in'}
           </button>
         </form>
 
         <div className="auth-switch">
-          {isSignUp ? 'Already have an account?' : "Don't have an account?"}
-          <button
-            type="button"
-            onClick={() => {
-              setIsSignUp(!isSignUp)
-              setErrorMsg('')
-              setSuccessMsg('')
-            }}
-          >
-            {isSignUp ? 'Sign in' : 'Sign up'}
+          {isSignup ? 'Already have an account?' : "Don't have an account?"}
+          <button type="button" onClick={() => setIsSignup((prev) => !prev)}>
+            {isSignup ? 'Log in' : 'Sign up'}
           </button>
+        </div>
+
+        <div className="auth-helper-note">
+          Built for students, flatmates, trips, dinners, and your everyday money life.
         </div>
       </div>
     </div>
